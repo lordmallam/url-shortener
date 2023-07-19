@@ -9,6 +9,9 @@ describe('shorten API', () => {
   let req: any;
   let res: any;
 
+  const newURL = 'http://newurl.com'
+  const existingURL = 'http://existingurl.com'
+
   const urlDatabase = [
     {
       id: 'abcd',
@@ -18,7 +21,7 @@ describe('shorten API', () => {
     },
     {
       id: 'dcba',
-      url: 'http://example1.com',
+      url: existingURL,
       shortCount: 2,
       accessCount: 4,
     },
@@ -59,36 +62,51 @@ describe('shorten API', () => {
     jest.clearAllMocks();
   });
 
-  it('should handle a POST request with a valid URL', async () => {
-    const urlEntry = {
-      id: '2',
-      url: 'http://example.com',
-      shortCount: 1,
-      accessCount: 0,
-    };
-    const expectedResponse = {
-      shortenedUrl: 'http://localhost:3000/abcd',
+  it('should handle a POST request with a new valid URL', async () => {
+
+    const expectedNewResponse = {
+      shortenedUrl: 'http://localhost:3000/xyzabc',
       stats: {
-        shortCount: 2,
-        accessCount: 3,
+        shortCount: 1,
+        accessCount: 0,
       },
     };
 
     (loadFile as jest.Mock).mockResolvedValue(urlDatabase);
     (groupBy as jest.Mock).mockReturnValue(groupedDB);
-    (generateId as jest.Mock).mockReturnValueOnce('xyz');
+    (generateId as jest.Mock).mockReturnValueOnce('xyzabc');
     (saveFile as jest.Mock).mockResolvedValue(urlDatabase);
 
+    req.body.url = newURL;
     await shorten(req, res);
 
     expect(loadFile).toHaveBeenCalledTimes(1);
-    expect(groupBy).toHaveBeenCalledTimes(1);
+    expect(groupBy).toHaveBeenCalledWith(urlDatabase, 'id');
     expect(generateId).toHaveBeenCalledTimes(1);
-    expect(urlDatabase.push).toHaveBeenCalledTimes(1);
+    expect(saveFile).toHaveBeenCalledTimes(1);
+    expect(res.json).toHaveBeenCalledWith(expectedNewResponse);
+  });
+
+  it('should handle a POST request with an existing valid URL', async () => {
+    const expectedResponse = {
+      shortenedUrl: 'http://localhost:3000/dcba',
+      stats: {
+        shortCount: 3,
+        accessCount: 4,
+      },
+    };
+
+    (loadFile as jest.Mock).mockResolvedValue(urlDatabase);
+    (saveFile as jest.Mock).mockResolvedValue(urlDatabase);
+
+    req.body.url = existingURL;
+    await shorten(req, res);
+
+    expect(loadFile).toHaveBeenCalledTimes(1);
+    expect(groupBy).not.toHaveBeenCalled();
+    expect(generateId).not.toHaveBeenCalled();
     expect(saveFile).toHaveBeenCalledTimes(1);
     expect(res.json).toHaveBeenCalledWith(expectedResponse);
-    expect(res.status).not.toHaveBeenCalled();
-    expect(res.send).not.toHaveBeenCalled();
   });
 
   it('should handle a POST request with an empty URL', async () => {
@@ -105,43 +123,18 @@ describe('shorten API', () => {
     expect(res.json).not.toHaveBeenCalled();
   });
 
-  it('should handle a POST request with an existing URL', async () => {
-    (loadFile as jest.Mock).mockResolvedValue(urlDatabase);
-
-    await shorten(req, res);
-
-    expect(loadFile).toHaveBeenCalledTimes(1);
-    expect(groupBy).not.toHaveBeenCalled();
-    expect(generateId).not.toHaveBeenCalled();
-    expect(urlDatabase.push).not.toHaveBeenCalled();
-    expect(saveFile).toHaveBeenCalledTimes(1);
-    expect(res.json).toHaveBeenCalledTimes(1);
-    expect(res.json).toHaveBeenCalledWith({
-      shortenedUrl: 'http://localhost:3000/1',
-      stats: {
-        shortCount: 2,
-        accessCount: 0,
-      },
-    });
-    expect(res.status).not.toHaveBeenCalled();
-    expect(res.send).not.toHaveBeenCalled();
-  });
-
-  it('should handle a POST request with an error while saving the file', async () => {
+  it('should handle a POST request with an error while loading the file', async () => {
     (loadFile as jest.Mock).mockRejectedValue(new Error('File load error'));
-    (saveFile as jest.Mock).mockRejectedValue(new Error('File save error'));
 
     await shorten(req, res);
 
     expect(loadFile).toHaveBeenCalledTimes(1);
     expect(groupBy).not.toHaveBeenCalled();
     expect(generateId).not.toHaveBeenCalled();
-    expect(urlDatabase.push).not.toHaveBeenCalled();
-    expect(saveFile).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.send).toHaveBeenCalledTimes(1);
-    expect(res.send).toHaveBeenCalledWith('Error: File save error');
+    expect(res.send).toHaveBeenCalledWith('Error: File load error');
     expect(res.json).not.toHaveBeenCalled();
   });
 
@@ -157,7 +150,6 @@ describe('shorten API', () => {
     expect(loadFile).not.toHaveBeenCalled();
     expect(groupBy).not.toHaveBeenCalled();
     expect(generateId).not.toHaveBeenCalled();
-    expect(urlDatabase.push).not.toHaveBeenCalled();
     expect(saveFile).not.toHaveBeenCalled();
     expect(res.json).not.toHaveBeenCalled();
   });

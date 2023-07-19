@@ -12,7 +12,6 @@ const shorten = async (req: NextApiRequest, res: NextApiResponse) => {
     }
     try {
       const urlDatabase: UrlEntry[] = await loadFile();
-      console.log(urlDatabase)
       let urlEntry = urlDatabase.find(entry => entry.url === url);
       if (!urlEntry) {
         // only because a json file is used as storage
@@ -44,7 +43,6 @@ const shorten = async (req: NextApiRequest, res: NextApiResponse) => {
         },
       });
     } catch (error) {
-      console.log(error)
       res.status(500).send(error.toString());
     }
   } else {
